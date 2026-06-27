@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { api } from "@/lib/api";
 import {
   Folder,
   Hash,
@@ -9,6 +10,7 @@ import {
   Search,
   Trash2,
   BookMarked,
+  Loader2,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -18,20 +20,28 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
 type Bookmark = {
-  id: string;
-  url: string;
+  id: number;
+  user_id: number;
+  folder_id: number | null;
   title: string;
-  description: string;
-  tags: string[];
-  folder: string;
+  url: string;
+  description: string | null;
+  tags: string | null;
+  folder_name: string | null;
 };
 
-const STORAGE_KEY = "yggnet-bookmarks";
+type FolderItem = {
+  id: number;
+  user_id: number;
+  name: string;
+};
 
 export default function BookmarkPage() {
   const [items, setItems] = useState<Bookmark[]>([]);
+  const [allFolders, setAllFolders] = useState<FolderItem[]>([]);
   const [activeFolder, setActiveFolder] = useState<string>("All");
   const [query, setQuery] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   const [form, setForm] = useState({
     url: "",
@@ -41,95 +51,80 @@ export default function BookmarkPage() {
     folder: "General",
   });
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-
-    if (stored) {
-      setItems(JSON.parse(stored));
-      return;
+  const fetchData = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [bookmarksData, foldersData] = await Promise.all([
+        api.get<Bookmark[]>("/bookmarks"),
+        api.get<FolderItem[]>("/bookmarks/folders"),
+      ]);
+      setItems(bookmarksData);
+      setAllFolders(foldersData);
+    } catch (err) {
+      console.error("Failed to fetch bookmarks/folders", err);
+    } finally {
+      setIsLoading(false);
     }
-
-    const demo: Bookmark[] = [
-      {
-        id: "1",
-        url: "https://nextjs.org",
-        title: "Next.js",
-        description: "React framework for production apps",
-        tags: ["react", "ssr"],
-        folder: "Dev",
-      },
-      {
-        id: "2",
-        url: "https://ui.shadcn.com",
-        title: "shadcn/ui",
-        description: "Modern UI components",
-        tags: ["ui", "design"],
-        folder: "Dev",
-      },
-      {
-        id: "3",
-        url: "https://dribbble.com",
-        title: "Dribbble",
-        description: "Design inspiration",
-        tags: ["design", "inspiration"],
-        folder: "Design",
-      },
-    ];
-
-    setItems(demo);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(demo));
   }, []);
 
-  const save = (data: Bookmark[]) => {
-    setItems(data);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  };
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  const add = () => {
+  const add = async () => {
     if (!form.url.trim() || !form.title.trim()) return;
 
-    const newItem: Bookmark = {
-      id: Date.now().toString(),
-      url: form.url.trim(),
-      title: form.title.trim(),
-      description: form.description.trim(),
-      tags: form.tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean),
-      folder: form.folder.trim() || "General",
-    };
+    try {
+      const newItem = await api.post<Bookmark>("/bookmarks", {
+        title: form.title.trim(),
+        url: form.url.trim(),
+        description: form.description.trim(),
+        tags: form.tags.trim(),
+        folder_name: form.folder.trim() || "General",
+      });
 
-    save([newItem, ...items]);
+      setItems((prev) => [newItem, ...prev]);
 
-    setForm({
-      url: "",
-      title: "",
-      description: "",
-      tags: "",
-      folder: "General",
-    });
+      // Refresh folders if a new one was potentially created
+      const foldersData = await api.get<FolderItem[]>("/bookmarks/folders");
+      setAllFolders(foldersData);
+
+      setForm({
+        url: "",
+        title: "",
+        description: "",
+        tags: "",
+        folder: "General",
+      });
+    } catch (err) {
+      console.error("Failed to add bookmark", err);
+    }
   };
 
-  const remove = (id: string) => {
-    save(items.filter((i) => i.id !== id));
+  const remove = async (id: number) => {
+    try {
+      await api.delete(`/bookmarks/${id}`);
+      setItems((prev) => prev.filter((i) => i.id !== id));
+    } catch (err) {
+      console.error("Failed to delete bookmark", err);
+    }
   };
 
   const folders = useMemo(() => {
-    return ["All", ...Array.from(new Set(items.map((i) => i.folder)))];
-  }, [items]);
+    return ["All", ...allFolders.map((f) => f.name)];
+  }, [allFolders]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
 
     return items
-      .filter((i) => (activeFolder === "All" ? true : i.folder === activeFolder))
+      .filter((i) => (activeFolder === "All" ? true : i.folder_name === activeFolder))
       .filter((i) => {
         const searchable = [
           i.title,
-          i.description,
-          i.folder,
-          i.tags.join(" "),
+          i.description || "",
+          i.folder_name || "",
+          i.tags || "",
           i.url,
         ]
           .join(" ")
@@ -183,13 +178,18 @@ export default function BookmarkPage() {
               </div>
 
               <div className="space-y-1">
-                {folders.map((f) => {
-                  const count = items.filter((i) =>
-                    f === "All" ? true : i.folder === f
-                  ).length;
+                {isLoading ? (
+                  <div className="flex justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  folders.map((f) => {
+                    const count = items.filter((i) =>
+                      f === "All" ? true : i.folder_name === f
+                    ).length;
 
-                  return (
-                    <button
+                    return (
+                      <button
                       key={f}
                       onClick={() => setActiveFolder(f)}
                       className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm transition ${
@@ -200,9 +200,10 @@ export default function BookmarkPage() {
                     >
                       <span>{f}</span>
                       <span className="text-xs opacity-70">{count}</span>
-                    </button>
-                  );
-                })}
+                      </button>
+                    );
+                  })
+                )}
               </div>
             </Card>
 
@@ -285,7 +286,12 @@ export default function BookmarkPage() {
             </div>
 
             <div className="space-y-3">
-              {filtered.length === 0 ? (
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <p className="mt-4 text-sm text-muted-foreground">Loading bookmarks...</p>
+                </div>
+              ) : filtered.length === 0 ? (
                 <Card className="p-10 text-center">
                   <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
                     <BookMarked className="h-5 w-5 text-muted-foreground" />
@@ -318,9 +324,9 @@ export default function BookmarkPage() {
                         </p>
 
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="secondary">{b.folder}</Badge>
+                            {b.folder_name && <Badge variant="secondary">{b.folder_name}</Badge>}
 
-                          {b.tags.map((t) => (
+                            {b.tags?.split(",").map((t) => t.trim()).filter(Boolean).map((t) => (
                             <Badge key={t} variant="outline">
                               <Hash className="mr-1 h-3 w-3" />
                               {t}

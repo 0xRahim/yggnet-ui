@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { api } from "@/lib/api";
 import {
   ArrowUpDown,
   BookOpen,
@@ -14,6 +16,7 @@ import {
   Image as ImageIcon,
   LayoutGrid,
   ListFilter,
+  Loader2,
   Search,
   Settings2,
   Shield,
@@ -53,141 +56,17 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 type ResultType = "web" | "image" | "docs" | "news" | "video";
 
 type SearchResult = {
-  id: number;
+  id?: number;
   title: string;
   url: string;
-  domain: string;
-  description: string;
-  type: ResultType;
-  tags: string[];
-  updatedAt: string;
-  score: number;
+  domain?: string;
+  snippet: string;
+  type?: ResultType;
+  tags?: string[];
+  updatedAt?: string;
+  score?: number;
   isBookmarked?: boolean;
 };
-
-const ALL_RESULTS: SearchResult[] = [
-  {
-    id: 1,
-    title: "Yggnet Search — Fast, private, and customizable web search",
-    url: "yggnet.app/search",
-    domain: "yggnet.app",
-    description:
-      "Discover web pages, docs, images, and news with a clean interface, advanced filters, and instant pagination.",
-    type: "web",
-    tags: ["Search", "Privacy", "Speed"],
-    updatedAt: "2h ago",
-    score: 98,
-    isBookmarked: true,
-  },
-  {
-    id: 2,
-    title: "How to build a search engine UI with Next.js and shadcn/ui",
-    url: "docs.yggnet.app/guides/search-ui",
-    domain: "docs.yggnet.app",
-    description:
-      "A practical guide covering query routing, filters, result cards, pagination, keyboard shortcuts, and empty states.",
-    type: "docs",
-    tags: ["Next.js", "UI", "Guide"],
-    updatedAt: "1 day ago",
-    score: 91,
-  },
-  {
-    id: 3,
-    title: "Design systems for search results pages",
-    url: "blog.yggnet.app/design/search-pages",
-    domain: "blog.yggnet.app",
-    description:
-      "Patterns for ranking, snippets, metadata, relevance indicators, and mobile-friendly result lists.",
-    type: "web",
-    tags: ["Design", "UX", "Ranking"],
-    updatedAt: "3 days ago",
-    score: 86,
-  },
-  {
-    id: 4,
-    title: "Search UX patterns that reduce bounce rate",
-    url: "news.yggnet.app/search-ux-patterns",
-    domain: "news.yggnet.app",
-    description:
-      "A compact breakdown of faceted filtering, autosuggest, highlighted terms, and result grouping.",
-    type: "news",
-    tags: ["UX", "Patterns", "Conversion"],
-    updatedAt: "5 days ago",
-    score: 84,
-  },
-  {
-    id: 5,
-    title: "Image search inspiration collection",
-    url: "assets.yggnet.app/collections/image-search",
-    domain: "assets.yggnet.app",
-    description:
-      "Curated screenshots of modern search pages with card layouts, filters, and compact controls.",
-    type: "image",
-    tags: ["Images", "Inspiration", "Cards"],
-    updatedAt: "6 days ago",
-    score: 79,
-  },
-  {
-    id: 6,
-    title: "Search indexing and ranking basics",
-    url: "learn.yggnet.app/search-indexing",
-    domain: "learn.yggnet.app",
-    description:
-      "Understand relevance signals, snippets, boosting, recency, and term highlighting for better ranking.",
-    type: "docs",
-    tags: ["Indexing", "Ranking", "Relevance"],
-    updatedAt: "1 week ago",
-    score: 88,
-  },
-  {
-    id: 7,
-    title: "Better search suggestions with instant feedback",
-    url: "blog.yggnet.app/instant-suggestions",
-    domain: "blog.yggnet.app",
-    description:
-      "Add query suggestions, history, trending searches, and refined filters to improve search efficiency.",
-    type: "web",
-    tags: ["Autocomplete", "Suggestions", "Search"],
-    updatedAt: "2 weeks ago",
-    score: 83,
-  },
-  {
-    id: 8,
-    title: "Search result card component examples",
-    url: "ui.yggnet.app/components/search-cards",
-    domain: "ui.yggnet.app",
-    description:
-      "Reusable card layouts for text, media, documents, and discovery results with consistent spacing.",
-    type: "docs",
-    tags: ["Components", "Cards", "Reusable"],
-    updatedAt: "2 weeks ago",
-    score: 81,
-  },
-  {
-    id: 9,
-    title: "Search engine ideas for personal knowledge bases",
-    url: "notes.yggnet.app/pkb-search",
-    domain: "notes.yggnet.app",
-    description:
-      "Ideas for semantic search, topic filters, pinned queries, and quick open in a personal content vault.",
-    type: "docs",
-    tags: ["Knowledge Base", "Semantic", "Topics"],
-    updatedAt: "3 weeks ago",
-    score: 76,
-  },
-  {
-    id: 10,
-    title: "Search analytics dashboard",
-    url: "analytics.yggnet.app/search-dashboard",
-    domain: "analytics.yggnet.app",
-    description:
-      "See query volume, click-through rate, zero-result rate, and popular filters over time.",
-    type: "web",
-    tags: ["Analytics", "CTR", "Metrics"],
-    updatedAt: "1 month ago",
-    score: 74,
-  },
-];
 
 const RESULT_TYPES: Array<{ value: ResultType | "all"; label: string; icon: React.ReactNode }> = [
   { value: "all", label: "All", icon: <Globe className="h-4 w-4" /> },
@@ -251,63 +130,38 @@ function ResultCard({ result }: { result: SearchResult }) {
           <div className="min-w-0 flex-1">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="secondary" className="rounded-full px-2 py-0.5 text-[11px]">
-                <ResultIcon type={result.type} />
-                <span className="ml-1 capitalize">{result.type}</span>
+                <Globe className="h-4 w-4" />
+                <span className="ml-1 capitalize">Web</span>
               </Badge>
-              <span className="inline-flex items-center gap-1">
-                <Clock3 className="h-3.5 w-3.5" />
-                {result.updatedAt}
-              </span>
             </div>
 
             <CardTitle className="line-clamp-2 text-base font-semibold leading-snug sm:text-lg">
-              <Link href="#" className="transition-colors hover:text-primary">
+              <a href={result.url} target="_blank" className="transition-colors hover:text-primary">
                 {result.title}
-              </Link>
+              </a>
             </CardTitle>
 
             <CardDescription className="mt-1 flex items-center gap-2 text-xs sm:text-sm">
-              <span className="font-medium text-foreground/90">{result.domain}</span>
-              <span className="text-muted-foreground">•</span>
               <span className="truncate text-muted-foreground">{result.url}</span>
             </CardDescription>
           </div>
-
-          <Badge variant="outline" className="rounded-full px-2.5 py-1 text-xs">
-            <Star className="mr-1 h-3.5 w-3.5" />
-            {result.score}
-          </Badge>
         </div>
       </CardHeader>
 
       <CardContent className="space-y-4 pt-0">
         <p className="line-clamp-3 text-sm leading-6 text-muted-foreground">
-          {result.description}
+          {result.snippet}
         </p>
-
-        <div className="flex flex-wrap gap-2">
-          {result.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="rounded-full px-2.5 py-1 text-[11px]">
-              {tag}
-            </Badge>
-          ))}
-        </div>
 
         <Separator />
 
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {result.isBookmarked ? <Badge variant="secondary" className="rounded-full">Saved</Badge> : null}
-            <span>Result #{result.id}</span>
-          </div>
-
+        <div className="flex items-center justify-end gap-3">
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" className="h-8 rounded-xl px-3">
-              Preview
-            </Button>
-            <Button size="sm" className="h-8 rounded-xl px-3">
-              Open
-              <ExternalLink className="ml-2 h-3.5 w-3.5" />
+            <Button size="sm" className="h-8 rounded-xl px-3" asChild>
+              <a href={result.url} target="_blank">
+                Open
+                <ExternalLink className="ml-2 h-3.5 w-3.5" />
+              </a>
             </Button>
           </div>
         </div>
@@ -317,49 +171,48 @@ function ResultCard({ result }: { result: SearchResult }) {
 }
 
 export default function SearchPage() {
-  const [query, setQuery] = React.useState("search engine ui");
+  const searchParams = useSearchParams();
+  const q = searchParams.get("q") || "";
+  const incognito = searchParams.get("incognito") === "true";
+
+  const [query, setQuery] = React.useState(q);
+  const [results, setResults] = React.useState<SearchResult[]>([]);
+  const [isLoading, setIsLoading] = React.useState(false);
+
   const [activeType, setActiveType] = React.useState<ResultType | "all">("all");
   const [sortBy, setSortBy] = React.useState("relevance");
   const [safeSearch, setSafeSearch] = React.useState(true);
   const [bookmarksOnly, setBookmarksOnly] = React.useState(false);
   const [page, setPage] = React.useState(1);
 
+  const fetchResults = React.useCallback(async (query: string, isIncognito: boolean) => {
+    if (!query) return;
+    setIsLoading(true);
+    try {
+      const data = await api.get<SearchResult[]>(`/search?q=${encodeURIComponent(query)}&incognito=${isIncognito}`);
+      setResults(data);
+    } catch (err) {
+      console.error("Failed to fetch search results", err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    fetchResults(q, incognito);
+    setQuery(q);
+  }, [fetchResults, q, incognito]);
+
   const filtered = React.useMemo(() => {
-    const q = query.trim().toLowerCase();
-
-    let items = ALL_RESULTS.filter((item) => {
-      const matchesQuery =
-        !q ||
-        [item.title, item.description, item.domain, item.url, ...item.tags]
-          .join(" ")
-          .toLowerCase()
-          .includes(q);
-
-      const matchesType = activeType === "all" || item.type === activeType;
-      const matchesBookmarks = !bookmarksOnly || Boolean(item.isBookmarked);
-      const matchesSafeSearch = safeSearch ? item.type !== "video" : true;
-
-      return matchesQuery && matchesType && matchesBookmarks && matchesSafeSearch;
-    });
-
-    items = [...items].sort((a, b) => {
-      if (sortBy === "recent") return b.updatedAt.localeCompare(a.updatedAt);
-      if (sortBy === "score") return b.score - a.score;
-      return b.score - a.score;
-    });
-
-    return items;
-  }, [query, activeType, sortBy, safeSearch, bookmarksOnly]);
+    // Basic local filtering for demo purposes if needed, but primarily we use API results
+    return results;
+  }, [results]);
 
   const totalResults = filtered.length;
   const totalPages = Math.max(1, Math.ceil(totalResults / PAGE_SIZE));
   const currentPage = clampPage(page, totalPages);
   const pageItems = getPageItems(filtered, currentPage, PAGE_SIZE);
   const pageWindow = buildPageWindow(currentPage, totalPages);
-
-  React.useEffect(() => {
-    setPage(1);
-  }, [query, activeType, sortBy, safeSearch, bookmarksOnly]);
 
   const hasResults = pageItems.length > 0;
 
@@ -513,7 +366,12 @@ export default function SearchPage() {
                 </div>
               </div>
 
-              {!hasResults ? (
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <p className="mt-4 text-sm text-muted-foreground">Searching the web...</p>
+                </div>
+              ) : !hasResults ? (
                 <Card className="rounded-2xl border-dashed bg-background">
                   <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
                     <div className="rounded-full border bg-muted/30 p-4">
@@ -614,7 +472,7 @@ export default function SearchPage() {
                       <p className="text-xs text-muted-foreground">Avg. score</p>
                       <p className="mt-1 text-sm font-medium">
                         {Math.round(
-                          filtered.reduce((sum, item) => sum + item.score, 0) /
+                          filtered.reduce((sum, item) => sum + (item.score || 0), 0) /
                             Math.max(filtered.length, 1)
                         )}
                       </p>

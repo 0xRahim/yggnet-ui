@@ -79,7 +79,7 @@ export default function Hero() {
               {incognito ? "Private search" : "Standard search"}
             </div>
 
-            <SearchBox />
+            <SearchBox incognito={incognito} />
           </div>
         </div>
       </div>
