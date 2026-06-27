@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, Source_Sans_3 } from "next/font/google";
 import "../globals.css";
 import { cn } from "@/lib/utils";
 
+import AuthGuard from "@/components/AuthGuard";
 import Dock from "@/components/search/Dock";
 import RightSidebar from "@/components/search/RightSidebar";
 
@@ -42,23 +43,19 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full bg-background text-foreground">
+        <AuthGuard>
+          {/* GLOBAL APP SHELL */}
+          <div className="flex min-h-screen">
+            {/* LEFT DOCK */}
+            <Dock />
 
-        {/* GLOBAL APP SHELL */}
-        <div className="flex min-h-screen">
+            {/* MAIN CONTENT */}
+            <main className="flex-1 pl-24">{children}</main>
 
-          {/* LEFT DOCK */}
-          <Dock />
-
-          {/* MAIN CONTENT */}
-          <main className="flex-1 pl-24">
-            {children}
-          </main>
-
-          {/* RIGHT SIDEBAR TRIGGER + SHEET */}
-          <RightSidebar />
-
-        </div>
-
+            {/* RIGHT SIDEBAR TRIGGER + SHEET */}
+            <RightSidebar />
+          </div>
+        </AuthGuard>
       </body>
     </html>
   );
